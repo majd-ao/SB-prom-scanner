@@ -80,76 +80,7 @@
         result.style.color = "red";
         playSound("error");
         return;
-      }
-
-      if (validTickets[ticketID].used) {
-        result.textContent = `⚠️ Ticket ${ticketID} already used by ${validTickets[ticketID].name}`;
-        result.style.color = "orange";
-        playSound("error");
-        return;
-      }
-
-      validTickets[ticketID].used = true;
-      localStorage.setItem("usedTickets", JSON.stringify(validTickets));
-      result.textContent = `✅ Welcome, ${validTickets[ticketID].name}!`;
-      result.style.color = "green";
-      playSound("success");
-    }
-
-    function resetTickets() {
-      const pin = prompt("Enter admin PIN to reset:");
-      if (pin !== "1234") {
-        alert("❌ Incorrect PIN.");
-        return;
-      }
-
-      for (const id in validTickets) {
-        validTickets[id].used = false;
-      }
-      localStorage.removeItem("usedTickets");
-      document.getElementById("result").textContent = "✔️ All tickets have been reset.";
-    }
-
-    function downloadCheckedIn() {
-      const data = Object.entries(validTickets)
-        .filter(([_, v]) => v.used)
-        .map(([id, v]) => `${id},${v.name}`)
-        .join("\n");
-
-      if (!data) {
-        alert("No one has checked in yet.");
-        return;
-      }
-
-      const blob = new Blob([data], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "checked_in_guests.csv";
-      a.click();
-    }
-
-    window.onload = () => {
-      const qrScanner = new Html5Qrcode("reader");
-
-      function onScanSuccess(decodedText) {
-        console.log("✅ QR detected:", decodedText);
-        checkTicket(decodedText);
-        qrScanner.stop()
-          .then(() => setTimeout(startScanner, 3000))
-          .catch(err => console.error("Stop failed:", err));
-      }
-
-      function startScanner() {
-        qrScanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
-          onScanSuccess,
-          error => { /* ignore errors */ }
-        ).then(() => {
-          console.log("Scanner started.");
-        }).catch(err => {
-          document.getElementById("result").textContent =
+d("result").textContent =
             "❌ Camera error: " + err;
           console.error("Start failed:", err);
         });
