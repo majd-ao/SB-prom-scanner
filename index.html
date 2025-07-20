@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SB Prom Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script>
+    const guestList = {
+      2025001: "Guest 001",
+      2025002: "Guest 002",
+      2025003: "Guest 003",
+      // Add the rest of your guests here
+    };const checkedIn = new Map();
+
+function checkIn(code) {
+  code = code.trim();
+  if (!/^[0-9]+$/.test(code)) {
+    updateStatus(`Invalid ticket format`, false);
+    return;
+  }
+  if (!guestList.hasOwnProperty(code)) {
+    updateStatus(`Ticket ${code} is INVALID`, false);
+    return;
+  }
+  if (checkedIn.has(code)) {
+    updateStatus(`${guestList[code]} has ALREADY checked in`, false);
+    return;
+  }
+  const time = new Date().toLocaleString();
+  checkedIn.set(code, time);
+  updateStatus(`Welcome, ${guestList[code]}!`, true);
+}
+
+function updateStatus(message, success) {
+  const status = document.getElementById("status");
+  status.textContent = message;
+  status.className = success ? "text-green-400" : "text-red-400";
+}
+
+function downloadCheckIns() {
+  let content = "Ticket,Name,Time\n";
+  for (const [code, time] of checkedIn.entries()) {
+    content += `${code},${guestList[code]},${time}\n`;
+  }
+  const blob = new Blob([content], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "checkins.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const scanner = new Html5Qrcode("reader");
+  Html5Qrcode.getCameras().then(devices => {
+    const backCam = devices.find(d => d.label.toLowerCase().includes("back")) || devices[0];
+    scanner.start(
+      backCam.id,
+      { fps: 10, qrbox: 250 },
+      code => {
+        scanner.pause();
+        checkIn(code);
+        setTimeout(() => scanner.resume(), 1500);
+      },
+      error => {}
+    );
+  });
+
+  document.getElementById("manualBtn").addEventListener("click", () => {
+    const input = document.getElementById("manualInput");
+    checkIn(input.value);
+    input.value = "";
+  });
+
+  document.getElementById("download").addEventListener("click", downloadCheckIns);
+});
+
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col items-center justify-center p-4">
+  <h1 class="text-3xl font-bold mb-4">SB Prom Scanner</h1>
+  <div id="reader" class="w-full max-w-sm mb-4 rounded overflow-hidden"></div>
+  <div class="flex gap-2 mb-2">
+    <input id="manualInput" type="text" placeholder="Enter ticket number"
+      class="text-black px-3 py-2 rounded-md" />
+    <button id="manualBtn" class="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded text-white font-semibold">
+      Check In
+    </button>
+  </div>
+  <button id="download" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white font-semibold mb-2">
+    Download Check-Ins
+  </button>
+  <p id="status" class="text-lg font-semibold mt-2"></p>
+</body>
+</html>
