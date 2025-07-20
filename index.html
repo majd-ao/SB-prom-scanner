@@ -1,0 +1,179 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SB Prom Scanner</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    video {
+      width: 90%;
+      max-width: 500px;
+      margin: 10px 0;
+      border-radius: 8px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      margin-top: 10px;
+      width: 250px;
+    }
+    button {
+      margin: 8px;
+      padding: 10px 15px;
+      font-size: 14px;
+      border: none;
+      border-radius: 6px;
+      background-color: #3a3a3a;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #555;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    #checkIns {
+      margin-top: 20px;
+      max-width: 500px;
+      width: 100%;
+      border-top: 1px solid #444;
+      padding-top: 10px;
+    }
+    .checkin-item {
+      padding: 6px;
+      border-bottom: 1px solid #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>SB Prom Scanner</h1>
+  <video id="preview"></video>
+  <input type="text" id="manualInput" placeholder="Enter ticket manually" />
+  <div>
+    <button onclick="downloadCSV()">Download Check-Ins</button>
+    <button onclick="resetCheckIns()">Reset Check-Ins</button>
+  </div>
+  <div id="status"></div>
+  <div id="checkIns"></div>  <script src="https://unpkg.com/html5-qrcode"></script>  <script>
+    const validTickets = Array.from({ length: 200 }, (_, i) => (2025001 + i).toString());
+    const scanned = new Set(JSON.parse(localStorage.getItem("scanned") || "[]"));
+
+    const checkInsDiv = document.getElementById("checkIns");
+    const statusDiv = document.getElementById("status");
+
+    function renderCheckIns() {
+      checkInsDiv.innerHTML = "<h3>Checked-In Tickets:</h3>";
+      [...scanned].forEach(code => {
+        const timestamp = new Date(JSON.parse(localStorage.getItem("checkInTimes"))[code]);
+        const div = document.createElement("div");
+        div.className = "checkin-item";
+        div.textContent = `${code} – ${timestamp.toLocaleString()}`;
+        checkInsDiv.appendChild(div);
+      });
+    }
+
+    function markScanned(code) {
+      scanned.add(code);
+      const timeRecord = JSON.parse(localStorage.getItem("checkInTimes") || "{}");
+      timeRecord[code] = new Date().toISOString();
+      localStorage.setItem("checkInTimes", JSON.stringify(timeRecord));
+      localStorage.setItem("scanned", JSON.stringify([...scanned]));
+      renderCheckIns();
+    }
+
+    function showStatus(message, color) {
+      statusDiv.textContent = message;
+      statusDiv.style.color = color;
+    }
+
+    function processCode(input) {
+      const code = input.trim();
+      if (!/^[0-9]+$/.test(code)) {
+        showStatus("Invalid format.", "orange");
+        return;
+      }
+      if (!validTickets.includes(code)) {
+        showStatus(`Ticket ${code} is invalid.`, "red");
+      } else if (scanned.has(code)) {
+        showStatus(`Ticket ${code} already checked in.`, "orange");
+      } else {
+        markScanned(code);
+        showStatus(`Ticket ${code} checked in!`, "green");
+      }
+    }
+
+    document.getElementById("manualInput").addEventListener("keypress", e => {
+      if (e.key === "Enter") {
+        processCode(e.target.value);
+        e.target.value = "";
+      }
+    });
+
+    function downloadCSV() {
+      const times = JSON.parse(localStorage.getItem("checkInTimes") || "{}");
+      let csv = "Ticket,Timestamp\n";
+      scanned.forEach(code => {
+        csv += `${code},${new Date(times[code]).toLocaleString()}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "checkins.csv";
+      a.click();
+    }
+
+    function resetCheckIns() {
+      if (confirm("Are you sure you want to reset all check-ins?")) {
+        localStorage.removeItem("scanned");
+        localStorage.removeItem("checkInTimes");
+        scanned.clear();
+        renderCheckIns();
+        showStatus("All check-ins have been reset.", "gray");
+      }
+    }
+
+    renderCheckIns();
+
+    const html5QrCode = new Html5Qrcode("preview");
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices.length) {
+        const backCam = devices.find(d => d.label.toLowerCase().includes("back")) || devices[0];
+        html5QrCode.start(
+          backCam.id,
+          {
+            fps: 10,
+            qrbox: 250,
+          },
+          code => {
+            html5QrCode.stop();
+            processCode(code);
+            setTimeout(() => {
+              html5QrCode.start(backCam.id, { fps: 10, qrbox: 250 }, code => {
+                html5QrCode.stop();
+                processCode(code);
+                setTimeout(() => html5QrCode.start(backCam.id, { fps: 10, qrbox: 250 }, code => {}), 500);
+              });
+            }, 500);
+          },
+          err => {}
+        );
+      }
+    });
+  </script></body>
+</html>
