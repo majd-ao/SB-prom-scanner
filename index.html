@@ -1,0 +1,115 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SB Prom Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }#reader {
+  width: 300px;
+  margin: auto;
+}
+
+.success {
+  color: green;
+}
+
+.error {
+  color: red;
+}
+
+  </style>
+</head><body>
+  <h1>SB Prom Scanner</h1>  <div id="reader"></div><button onclick="resetTickets()">Reset Check-ins</button> <button onclick="downloadCheckIns()">Download Check-ins</button>
+
+  <p id="result"></p>
+  <p id="name"></p>  <script>
+    const totalGuests = 200;
+    const usedTickets = JSON.parse(localStorage.getItem("usedTickets") || "{}");
+    const guests = {};
+
+    for (let i = 1; i <= totalGuests; i++) {
+      const id = String(i).padStart(3, "0");
+      guests[`GUEST${id}`] = `Guest ${id}`;
+    }
+
+    function updateResult(message, isSuccess, name) {
+      const result = document.getElementById("result");
+      const nameEl = document.getElementById("name");
+      result.textContent = message;
+      result.className = isSuccess ? "success" : "error";
+      nameEl.textContent = name || "";
+    }
+
+    function markTicketUsed(ticket) {
+      usedTickets[ticket] = {
+        name: guests[ticket],
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem("usedTickets", JSON.stringify(usedTickets));
+    }
+
+    function isTicketUsed(ticket) {
+      return usedTickets.hasOwnProperty(ticket);
+    }
+
+    function resetTickets() {
+      localStorage.removeItem("usedTickets");
+      location.reload();
+    }
+
+    function downloadCheckIns() {
+      let csvContent = "data:text/csv;charset=utf-8,Ticket ID,Name,Timestamp\n";
+      for (const [ticket, data] of Object.entries(usedTickets)) {
+        csvContent += `${ticket},${data.name},${data.timestamp}\n`;
+      }
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "checkins.csv");
+      document.body.appendChild(link);
+      link.click();
+    }
+
+    let lastScanTime = 0;
+
+    function onScanSuccess(decodedText) {
+      const now = Date.now();
+      if (now - lastScanTime < 1500) return;
+      lastScanTime = now;
+
+      const ticket = decodedText.trim().toUpperCase();
+
+      if (!guests[ticket]) {
+        updateResult("Invalid ticket.", false);
+        return;
+      }
+
+      if (isTicketUsed(ticket)) {
+        updateResult("Ticket already used.", false, guests[ticket]);
+      } else {
+        markTicketUsed(ticket);
+        updateResult("Check-in successful!", true, guests[ticket]);
+        const audio = new Audio("success.mp3");
+        audio.play();
+      }
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: 250 };
+
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length) {
+        html5QrCode.start(
+          cameras[0].id,
+          config,
+          onScanSuccess
+        );
+      }
+    }).catch(err => {
+      updateResult("Camera initialization error.", false);
+    });
+  </script></body></html>
